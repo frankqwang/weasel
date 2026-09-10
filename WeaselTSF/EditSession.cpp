@@ -3,6 +3,58 @@
 #include "CandidateList.h"
 #include "ResponseParser.h"
 
+namespace {
+std::string Utf8(const std::wstring& value) {
+  if (value.empty()) return {};
+  int size = WideCharToMultiByte(CP_UTF8, 0, value.data(), (int)value.size(), nullptr, 0, nullptr, nullptr);
+  std::string result(size, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, value.data(), (int)value.size(), result.data(), size, nullptr, nullptr);
+  return result;
+}
+
+std::string JsonString(const std::wstring& value) {
+  std::string out = "\"";
+  for (unsigned char ch : Utf8(value)) {
+    if (ch == '\\' || ch == '\"') { out += '\\'; out += (char)ch; }
+    else if (ch == '\n') out += "\\n";
+    else if (ch == '\r') out += "\\r";
+    else if (ch == '\t') out += "\\t";
+    else if (ch < 0x20) out += ' ';
+    else out += (char)ch;
+  }
+  out += "\"";
+  return out;
+}
+
+void NotifyDoneBubble(const std::wstring& commit) {
+  if (commit.empty()) return;
+  HANDLE pipe = CreateFileW(L"\\\\.\\pipe\\DoneBubble.RimeInput", GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+  if (pipe == INVALID_HANDLE_VALUE) return;
+  HWND hwnd = GetForegroundWindow();
+  DWORD pid = 0;
+  GetWindowThreadProcessId(hwnd, &pid);
+  wchar_t title[512] = {};
+  GetWindowTextW(hwnd, title, ARRAYSIZE(title));
+  std::wstring process = L"";
+  if (pid != 0) {
+    HANDLE target = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (target) {
+      wchar_t path[MAX_PATH] = {};
+      DWORD length = ARRAYSIZE(path);
+      if (QueryFullProcessImageNameW(target, 0, path, &length)) {
+        const wchar_t* slash = wcsrchr(path, L'\\');
+        process = slash ? slash + 1 : path;
+      }
+      CloseHandle(target);
+    }
+  }
+  std::string payload = "{\"text\":" + JsonString(commit) + ",\"process\":" + JsonString(process) + ",\"window\":" + JsonString(title) + ",\"password\":false}\n";
+  DWORD written = 0;
+  WriteFile(pipe, payload.data(), (DWORD)payload.size(), &written, nullptr);
+  CloseHandle(pipe);
+}
+}
+
 STDMETHODIMP WeaselTSF::DoEditSession(TfEditCookie ec) {
   // get commit string from server
   std::wstring commit;
@@ -29,6 +81,7 @@ STDMETHODIMP WeaselTSF::DoEditSession(TfEditCookie ec) {
                           _fCUASWorkaroundEnabled && !config.inline_preedit);
       }
       _InsertText(_pEditSessionContext, commit);
+      NotifyDoneBubble(commit);
       // Keep the candidate UI alive while the replacement composition is
       // being created; otherwise the key-down path destroys the old window
       // and the new one cannot be positioned until key-up.
