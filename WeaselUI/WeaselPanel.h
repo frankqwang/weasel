@@ -106,6 +106,9 @@ class WeaselPanel
 
   weasel::Layout* m_layout;
   weasel::Context& m_ctx;
+  // A trimmed copy used only for layout. The original context remains intact
+  // for TSF selection and candidate paging.
+  weasel::Context m_layoutContext;
   weasel::Context& m_octx;
   weasel::Status& m_status;
   weasel::UIStyle& m_style;
@@ -140,6 +143,7 @@ class WeaselPanel
 
   bool hide_candidates;
   bool m_sticky;
+  BYTE m_visibleCandidateCount = 0;
   // for multi font_face & font_point
   PDWR pDWR;
   std::function<void(size_t* const, size_t* const, bool* const, bool* const)>&

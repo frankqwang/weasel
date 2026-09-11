@@ -113,18 +113,18 @@ void WeaselPanel::_CreateLayout() {
 
   Layout* layout = NULL;
   if (m_style.layout_type == UIStyle::LAYOUT_VERTICAL_TEXT) {
-    layout = new VHorizontalLayout(m_style, m_ctx, m_status, pDWR);
+    layout = new VHorizontalLayout(m_style, m_layoutContext, m_status, pDWR);
   } else {
     if (m_style.layout_type == UIStyle::LAYOUT_VERTICAL ||
         m_style.layout_type == UIStyle::LAYOUT_VERTICAL_FULLSCREEN) {
-      layout = new VerticalLayout(m_style, m_ctx, m_status, pDWR);
+      layout = new VerticalLayout(m_style, m_layoutContext, m_status, pDWR);
     } else if (m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL ||
                m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL_FULLSCREEN) {
-      layout = new HorizontalLayout(m_style, m_ctx, m_status, pDWR);
+      layout = new HorizontalLayout(m_style, m_layoutContext, m_status, pDWR);
     }
 
     if (IS_FULLSCREENLAYOUT(m_style)) {
-      layout = new FullScreenLayout(m_style, m_ctx, m_status, m_inputPos,
+      layout = new FullScreenLayout(m_style, m_layoutContext, m_status, m_inputPos,
                                     layout, pDWR);
     }
   }
@@ -135,7 +135,36 @@ void WeaselPanel::_CreateLayout() {
 void WeaselPanel::Refresh() {
   bool should_show_icon =
       (m_status.ascii_mode || !m_status.composing || !m_ctx.aux.empty());
-  m_candidateCount = min(m_ctx.cinfo.candies.size(), MAX_CANDIDATES_COUNT);
+  const auto totalCandidates = min(m_ctx.cinfo.candies.size(), MAX_CANDIDATES_COUNT);
+  m_visibleCandidateCount = static_cast<BYTE>(totalCandidates);
+  // In compact horizontal mode, hide candidates that would force another row
+  // in the fixed-width bar. Expanded vertical mode keeps the full page.
+  if (m_style.layout_type == UIStyle::LAYOUT_HORIZONTAL &&
+      m_style.max_width > 0 && totalCandidates > 1) {
+    int used = 2 * m_style.margin_x;
+    const int perCharacter = max(16, m_style.font_point * 2);
+    for (size_t i = 0; i < totalCandidates; ++i) {
+      const auto textWidth = static_cast<int>(m_ctx.cinfo.candies[i].str.size()) * perCharacter;
+      const auto labelWidth = max(18, m_style.label_font_point + 4);
+      const auto commentWidth = (i < m_ctx.cinfo.comments.size())
+                                    ? static_cast<int>(m_ctx.cinfo.comments[i].str.size()) * m_style.comment_font_point
+                                    : 0;
+      const int itemWidth = labelWidth + m_style.hilite_spacing + textWidth +
+                            (commentWidth ? m_style.hilite_spacing + commentWidth : 0) +
+                            m_style.candidate_spacing;
+      if (i > 0 && used + itemWidth + 2 * m_style.margin_x > m_style.max_width)
+        break;
+      used += itemWidth;
+      m_visibleCandidateCount = static_cast<BYTE>(i + 1);
+    }
+  }
+  m_candidateCount = m_visibleCandidateCount;
+  m_layoutContext = m_ctx;
+  m_layoutContext.cinfo.candies.resize(m_visibleCandidateCount);
+  m_layoutContext.cinfo.comments.resize(m_visibleCandidateCount);
+  m_layoutContext.cinfo.labels.resize(m_visibleCandidateCount);
+  if (m_layoutContext.cinfo.highlighted >= m_visibleCandidateCount)
+    m_layoutContext.cinfo.highlighted = 0;
   // When the candidate window changes from having content to having no content,
   // reset the sticky state
   if (m_lastCandidateCount > 0 && m_candidateCount == 0) {
