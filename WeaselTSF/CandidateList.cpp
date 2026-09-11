@@ -225,6 +225,16 @@ void CCandidateList::UpdateInputPosition(RECT const& rc) {
   _ui->UpdateInputPosition(rc);
 }
 
+bool CCandidateList::ToggleExpanded() {
+  if (!_ui || !_ui->IsShown()) return false;
+  bool expanded = _style.layout_type == UIStyle::LAYOUT_VERTICAL;
+  _style.layout_type = expanded ? UIStyle::LAYOUT_HORIZONTAL
+                                : UIStyle::LAYOUT_VERTICAL;
+  _ui->style().layout_type = _style.layout_type;
+  _ui->Refresh();
+  return true;
+}
+
 void CCandidateList::Destroy() {
   // EndUI();
   Show(FALSE);

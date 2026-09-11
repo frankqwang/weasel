@@ -50,6 +50,9 @@ class CCandidateList : public ITfIntegratableCandidateListUIElement,
   void UpdateUI(const weasel::Context& ctx, const weasel::Status& status);
   void UpdateStyle(const weasel::UIStyle& sty);
   void UpdateInputPosition(RECT const& rc);
+  // Toggle the compact single-row candidate bar and the expanded multi-row
+  // candidate panel without changing the Rime composition.
+  bool ToggleExpanded();
   void Destroy();
   void DestroyAll();
   void StartUI();

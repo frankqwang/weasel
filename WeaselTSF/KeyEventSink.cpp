@@ -21,6 +21,17 @@ void WeaselTSF::_ProcessKeyEvent(WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     *pfEaten = FALSE;
     return;
   }
+  // WeChat-style candidate panel toggle: '[' expands the compact horizontal
+  // bar into a vertical multi-row panel, while ']' collapses it again. Handle
+  // only key-down events while composing so literal brackets remain usable in
+  // normal text and in ASCII mode.
+  if (!(lParam & (1L << 31)) && _status.composing &&
+      (wParam == VK_OEM_4 || wParam == VK_OEM_6)) {
+    if (_cand->ToggleExpanded()) {
+      *pfEaten = TRUE;
+      return;
+    }
+  }
   weasel::KeyEvent ke;
   GetKeyboardState(_lpbKeyState);
   if (!ConvertKeyEvent(static_cast<UINT>(wParam), lParam, _lpbKeyState, ke)) {
